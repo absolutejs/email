@@ -1,0 +1,43 @@
+{
+  "name": "@absolutejs/email",
+  "version": "0.0.1-alpha.0",
+  "description": "Provider-neutral email sync adapters for AbsoluteJS: Gmail, Microsoft Graph, and IMAP.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/absolutejs/email.git"
+  },
+  "homepage": "https://github.com/absolutejs/email",
+  "bugs": {
+    "url": "https://github.com/absolutejs/email/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "BSL-1.1",
+  "author": "Alex Kahn",
+  "type": "module",
+  "files": [
+    "dist/**/*.d.ts",
+    "dist/index.js",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && bun build src/index.ts --outdir dist --target=bun --external imapflow && tsc --emitDeclarationOnly --project tsconfig.json",
+    "format": "prettier --write \"./**/*.{js,ts,json,md}\"",
+    "release": "bun run build && bun publish",
+    "test": "bun test",
+    "typecheck": "bun run tsc --noEmit"
+  },
+  "dependencies": {
+    "imapflow": "^1.4.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "typescript": "5.9.3"
+  }
+}
