@@ -15,6 +15,7 @@ import {
 } from "../utils";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
+const MAX_HISTORY_PAGES = 5;
 const MAX_WATCH_LEASE_MS = 6 * 24 * 60 * 60 * 1000;
 
 export type GmailHeader = {
@@ -47,6 +48,7 @@ export type GmailHistoryResponse = {
     messagesAdded?: { message?: { id?: string; threadId?: string } }[];
   }[];
   historyId?: string;
+  nextPageToken?: string;
 };
 
 export type GmailWatchResponse = {
@@ -123,49 +125,58 @@ export const createGmailClient = (
   },
   listHistory: async ({ cursor }) => {
     if (!cursor) return { cursor: null, expired: false, messages: [] };
-    const params = new URLSearchParams({
-      historyTypes: "messageAdded",
-      startHistoryId: cursor,
-    });
-    const response = await fetchJson<GmailHistoryResponse>(
-      `${GMAIL_API}/history?${params.toString()}`,
-      credential.accessToken,
-      undefined,
-      fetcher,
-    );
-    if (response.status === 404) {
-      return { cursor, expired: true, messages: [] };
-    }
-    if (!response.ok || !response.body) {
-      return { cursor, expired: false, messages: [] };
-    }
     const byId = new Map<string, { id: string; threadId?: string }>();
-    for (const entry of response.body.history ?? []) {
-      for (const added of entry.messagesAdded ?? []) {
-        const id = added.message?.id;
-        if (id) {
-          byId.set(
-            id,
-            added.message?.threadId
-              ? { id, threadId: added.message.threadId }
-              : { id },
-          );
+    let latestCursor = cursor;
+    let pageToken: string | undefined;
+
+    for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
+      const params = new URLSearchParams({
+        historyTypes: "messageAdded",
+        startHistoryId: cursor,
+      });
+      if (pageToken) params.set("pageToken", pageToken);
+      const response = await fetchJson<GmailHistoryResponse>(
+        `${GMAIL_API}/history?${params.toString()}`,
+        credential.accessToken,
+        undefined,
+        fetcher,
+      );
+      if (response.status === 404) {
+        return { cursor, expired: true, messages: [] };
+      }
+      if (!response.ok || !response.body) {
+        return { cursor: latestCursor, expired: false, messages: [] };
+      }
+      for (const entry of response.body.history ?? []) {
+        for (const added of entry.messagesAdded ?? []) {
+          const id = added.message?.id;
+          if (id) {
+            byId.set(
+              id,
+              added.message?.threadId
+                ? { id, threadId: added.message.threadId }
+                : { id },
+            );
+          }
+        }
+        for (const message of entry.messages ?? []) {
+          if (message.id) {
+            byId.set(
+              message.id,
+              message.threadId
+                ? { id: message.id, threadId: message.threadId }
+                : { id: message.id },
+            );
+          }
         }
       }
-      for (const message of entry.messages ?? []) {
-        if (message.id) {
-          byId.set(
-            message.id,
-            message.threadId
-              ? { id: message.id, threadId: message.threadId }
-              : { id: message.id },
-          );
-        }
-      }
+      latestCursor = response.body.historyId ?? latestCursor;
+      pageToken = response.body.nextPageToken;
+      if (!pageToken) break;
     }
 
     return {
-      cursor: response.body.historyId ?? cursor,
+      cursor: latestCursor,
       expired: false,
       messages: [...byId.values()],
     };
