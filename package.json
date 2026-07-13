@@ -15,25 +15,37 @@
   "license": "BSL-1.1",
   "author": "Alex Kahn",
   "type": "module",
+  "absolutejs": {
+    "manifestContract": 1
+  },
   "files": [
     "dist/**/*.d.ts",
     "dist/index.js",
+    "dist/manifest.js",
+    "dist/manifest.json",
     "README.md"
   ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js"
+    },
+    "./manifest.json": "./dist/manifest.json"
   },
   "scripts": {
-    "build": "rm -rf dist && bun build src/index.ts --outdir dist --target=bun --external imapflow && tsc --emitDeclarationOnly --project tsconfig.json",
+    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts --outdir dist --root src --target=bun --external imapflow && tsc --emitDeclarationOnly --project tsconfig.json && absolute-manifest emit",
     "format": "prettier --write \"./**/*.{js,ts,json,md}\"",
     "release": "bun run build && bun publish",
     "test": "bun test",
     "typecheck": "bun run tsc --noEmit"
   },
   "dependencies": {
+    "@absolutejs/manifest": "^0.1.0",
+    "@sinclair/typebox": "^0.34.0",
     "imapflow": "^1.4.1"
   },
   "devDependencies": {
