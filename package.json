@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/email",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Provider-neutral email sync adapters for AbsoluteJS: Gmail, Microsoft Graph, and IMAP.",
   "repository": {
     "type": "git",
@@ -16,7 +16,7 @@
   "author": "Alex Kahn",
   "type": "module",
   "absolutejs": {
-    "manifestContract": 1
+    "manifestContract": 2
   },
   "files": [
     "dist/**/*.d.ts",
@@ -44,7 +44,7 @@
     "typecheck": "bun run tsc --noEmit"
   },
   "dependencies": {
-    "@absolutejs/manifest": "^0.1.0",
+    "@absolutejs/manifest": "^0.4.0",
     "@sinclair/typebox": "^0.34.0",
     "imapflow": "^1.4.1"
   },

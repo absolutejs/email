@@ -76,9 +76,13 @@ const listRecent = async (runtime: EmailManifestRuntime, limit: number) => {
     }
     const delta = await runtime.gmail.listHistory({ cursor: state.cursor });
 
-    return gmailMessagesToNormalized(runtime.gmail, delta.messages.slice(-limit), {
-      accountEmail: runtime.accountEmail,
-    });
+    return gmailMessagesToNormalized(
+      runtime.gmail,
+      delta.messages.slice(-limit),
+      {
+        accountEmail: runtime.accountEmail,
+      },
+    );
   }
 
   return "no email client is bound for this mailbox";
@@ -95,7 +99,7 @@ export const manifest = defineManifest<
   Record<never, never>,
   EmailManifestRuntime
 >()({
-  contract: 1,
+  contract: 2,
   identity: {
     accent: "#ea4335",
     category: "messaging",
@@ -140,14 +144,20 @@ export const manifest = defineManifest<
   settings: Type.Object({}),
   tools: {
     list_recent_messages: tool.runtime({
-      annotations: { openWorldHint: true, readOnlyHint: true },
+      annotations: { idempotentHint: true, openWorldHint: true },
+      authorization: {
+        approval: "never",
+        audience: "owner",
+        destinations: ["configured-mailbox-provider"],
+        effects: ["read", "external-network"],
+        idempotency: { mode: "host" },
+        requiredScopes: ["email:read"],
+        reversible: false,
+      },
       description:
         "List recent messages in the connected mailbox (sender, recipients, subject, snippet — never full provider payloads or credentials). Uses whichever provider client the host bound: Microsoft Graph delta, IMAP recent, or Gmail history from the stored cursor.",
       handler: async ({ limit }, runtime) => {
-        const result = await listRecent(
-          runtime,
-          limit ?? DEFAULT_LIST_LIMIT,
-        );
+        const result = await listRecent(runtime, limit ?? DEFAULT_LIST_LIMIT);
 
         return typeof result === "string"
           ? result
@@ -164,7 +174,17 @@ export const manifest = defineManifest<
       }),
     }),
     message_detail: tool.runtime({
-      annotations: { openWorldHint: true, readOnlyHint: true },
+      annotations: { idempotentHint: true, openWorldHint: true },
+      authorization: {
+        approval: "never",
+        audience: "owner",
+        destinations: ["configured-mailbox-provider"],
+        effects: ["read", "external-network"],
+        idempotency: { mode: "host" },
+        requiredScopes: ["email:read"],
+        resource: { idField: "id", type: "email-message" },
+        reversible: false,
+      },
       description:
         "Fetch one message by id, with its text body (truncated). Supported for Gmail mailboxes; Microsoft Graph and IMAP only expose messages through the list sync.",
       handler: async ({ id }, runtime) => {
@@ -188,6 +208,12 @@ export const manifest = defineManifest<
     }),
     sync_status: tool.runtime({
       annotations: { readOnlyHint: true },
+      authorization: {
+        approval: "never",
+        audience: "owner",
+        effects: ["read"],
+        requiredScopes: ["email:read"],
+      },
       description:
         "Report sync state for the connected mailbox: which providers are bound, whether each has a stored cursor, and when the change-notification subscription expires. Never returns cursors or credentials.",
       handler: async (_input, runtime) => {
@@ -202,10 +228,8 @@ export const manifest = defineManifest<
         const statuses = await Promise.all(
           providers.map(async ([provider]) => {
             const state =
-              (await runtime.stateStore?.get(
-                provider,
-                runtime.accountEmail,
-              )) ?? null;
+              (await runtime.stateStore?.get(provider, runtime.accountEmail)) ??
+              null;
 
             return {
               hasCursor: Boolean(state?.cursor),
@@ -299,9 +323,7 @@ export const manifest = defineManifest<
           "});",
           "// imapResult.messages are normalized; persist imapResult.cursor for the next fetch.",
         ].join("\n"),
-        imports: [
-          { from: "@absolutejs/email", names: ["fetchImapMessages"] },
-        ],
+        imports: [{ from: "@absolutejs/email", names: ["fetchImapMessages"] }],
         placement: "module-scope",
       },
       title: "IMAP mailbox (app password)",
