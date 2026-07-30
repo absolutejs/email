@@ -8,6 +8,8 @@ export type EmailAddress = {
 export type NormalizedEmailMessage = {
   accountEmail: string;
   bodyText?: string | null;
+  /** Cc recipients — reply-all needs the full participant list, not just To. */
+  cc?: EmailAddress[];
   direction: "inbound" | "outbound";
   from?: EmailAddress | null;
   id: string;

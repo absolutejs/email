@@ -20,6 +20,7 @@ export type MicrosoftGraphRecipient = {
 export type MicrosoftGraphMessage = {
   body?: { content?: string; contentType?: string };
   bodyPreview?: string | null;
+  ccRecipients?: MicrosoftGraphRecipient[];
   conversationId?: string;
   from?: MicrosoftGraphRecipient;
   id?: string;
@@ -68,7 +69,7 @@ const isSubscription = (
 const deltaUrl = (pageSize: number) => {
   const params = new URLSearchParams({
     $select:
-      "id,internetMessageId,conversationId,subject,bodyPreview,body,from,toRecipients,receivedDateTime,sentDateTime",
+      "id,internetMessageId,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime",
     $top: String(pageSize),
   });
 
@@ -148,6 +149,13 @@ export const microsoftMessageToNormalized = (
   return {
     accountEmail: cleanEmail(input.accountEmail),
     bodyText,
+    cc:
+      message.ccRecipients
+        ?.map((recipient) => ({
+          address: graphEmail(recipient),
+          name: graphName(recipient),
+        }))
+        .filter((recipient) => recipient.address) ?? [],
     direction: directionFor(input.accountEmail, fromEmail),
     from: fromEmail
       ? { address: fromEmail, name: graphName(message.from) }

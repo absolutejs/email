@@ -220,6 +220,7 @@ export const gmailMessageToNormalized = (
   return {
     accountEmail: cleanEmail(input.accountEmail),
     bodyText,
+    cc: parseAddressList(header(message, "cc")),
     direction: directionFor(input.accountEmail, from.address),
     from: from.address ? from : null,
     id: message.id,
