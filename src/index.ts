@@ -1,3 +1,9 @@
+export {
+  bulkSignalsFromHeaders,
+  isBulkMail,
+  type BulkMailSignals,
+  type HeaderLike,
+} from "./bulk";
 export * from "./adapters/gmail";
 export * from "./adapters/imap";
 export * from "./adapters/microsoft";
