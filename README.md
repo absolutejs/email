@@ -1,5 +1,9 @@
 # @absolutejs/email
 
+The Gmail adapter can also locate a tagged delivery canary across Inbox, Spam,
+Trash, and other labels with `findGmailMessagePlacement`. The host application
+owns canary scheduling, mailbox credentials, alert policy, and persistence.
+
 Provider-neutral email sync adapters for AbsoluteJS applications.
 
 This package owns the provider mechanics:

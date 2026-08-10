@@ -35,6 +35,7 @@ export type GmailMessage = {
   historyId?: string;
   id?: string;
   internalDate?: string;
+  labelIds?: string[];
   payload?: GmailMessagePart & {
     headers?: GmailHeader[];
   };
@@ -51,6 +52,12 @@ export type GmailHistoryResponse = {
   nextPageToken?: string;
 };
 
+export type GmailMessageListResponse = {
+  messages?: { id?: string; threadId?: string }[];
+  nextPageToken?: string;
+  resultSizeEstimate?: number;
+};
+
 export type GmailWatchResponse = {
   expiration?: string;
   historyId?: string;
@@ -61,16 +68,21 @@ export type GmailClient = {
   listHistory: (input: {
     cursor?: string | null;
   }) => Promise<EmailDeltaResult<{ id: string; threadId?: string }>>;
-  watch: (topicName: string) => Promise<EmailSubscriptionResult & {
-    cursor?: string | null;
-  }>;
+  searchMessages: (input: {
+    maxResults?: number;
+    query: string;
+  }) => Promise<{ id: string; threadId?: string }[]>;
+  watch: (topicName: string) => Promise<
+    EmailSubscriptionResult & {
+      cursor?: string | null;
+    }
+  >;
 };
 
 const decodeBase64Url = (value: string) =>
-  Buffer.from(
-    value.replace(/-/gu, "+").replace(/_/gu, "/"),
-    "base64",
-  ).toString("utf8");
+  Buffer.from(value.replace(/-/gu, "+").replace(/_/gu, "/"), "base64").toString(
+    "utf8",
+  );
 
 const header = (message: GmailMessage, name: string) =>
   message.payload?.headers?.find(
@@ -180,6 +192,30 @@ export const createGmailClient = (
       expired: false,
       messages: [...byId.values()],
     };
+  },
+  searchMessages: async ({ maxResults = 10, query }) => {
+    const params = new URLSearchParams({
+      includeSpamTrash: "true",
+      maxResults: String(maxResults),
+      q: query,
+    });
+    const response = await fetchJson<GmailMessageListResponse>(
+      `${GMAIL_API}/messages?${params.toString()}`,
+      credential.accessToken,
+      undefined,
+      fetcher,
+    );
+    if (!response.ok || !response.body) return [];
+
+    return (response.body.messages ?? []).flatMap((message) => {
+      if (!message.id) return [];
+
+      return [
+        message.threadId
+          ? { id: message.id, threadId: message.threadId }
+          : { id: message.id },
+      ];
+    });
   },
   watch: async (topicName) => {
     const response = await fetchJson<GmailWatchResponse>(

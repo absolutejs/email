@@ -8,6 +8,7 @@ export * from "./adapters/gmail";
 export * from "./adapters/imap";
 export * from "./adapters/microsoft";
 export * from "./crypto";
+export * from "./placement";
 export * from "./stores/inMemoryStateStore";
 export * from "./types";
 export * from "./utils";
