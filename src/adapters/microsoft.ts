@@ -5,7 +5,13 @@ import type {
   NormalizedEmailMessage,
   TokenCredential,
 } from "../types";
-import { cleanEmail, directionFor, fetchJson, parseDate, stripHtml } from "../utils";
+import {
+  cleanEmail,
+  directionFor,
+  fetchJson,
+  parseDate,
+  stripHtml,
+} from "../utils";
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 const DEFAULT_PAGE_SIZE = 150;
@@ -56,14 +62,16 @@ export type MicrosoftEmailClient = {
     cursor?: string | null;
     pageSize?: number;
   }) => Promise<EmailDeltaResult<MicrosoftGraphMessage>>;
+  searchMessages: (input: {
+    maxResults?: number;
+    query: string;
+  }) => Promise<MicrosoftGraphMessage[]>;
 };
 
 const isPage = (value: unknown): value is MicrosoftGraphMessagePage =>
   typeof value === "object" && value !== null;
 
-const isSubscription = (
-  value: unknown,
-): value is MicrosoftGraphSubscription =>
+const isSubscription = (value: unknown): value is MicrosoftGraphSubscription =>
   typeof value === "object" && value !== null;
 
 const deltaUrl = (pageSize: number) => {
@@ -74,6 +82,17 @@ const deltaUrl = (pageSize: number) => {
   });
 
   return `${GRAPH_BASE}/me/messages/delta?${params.toString()}`;
+};
+
+const searchUrl = (query: string, maxResults: number) => {
+  const params = new URLSearchParams({
+    $search: `"${query.replace(/["\\]/gu, " ").trim()}"`,
+    $select:
+      "id,internetMessageId,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime",
+    $top: String(maxResults),
+  });
+
+  return `${GRAPH_BASE}/me/messages?${params.toString()}`;
 };
 
 const graphEmail = (recipient: MicrosoftGraphRecipient | undefined) =>
@@ -134,6 +153,19 @@ export const createMicrosoftGraphEmailClient = (
         null,
       messages: response.body.value ?? [],
     };
+  },
+  searchMessages: async ({ maxResults = 20, query }) => {
+    const response = await fetchJson<MicrosoftGraphMessagePage>(
+      searchUrl(query, Math.max(1, Math.min(100, maxResults))),
+      credential.accessToken,
+      {
+        headers: { Prefer: 'outlook.body-content-type="text"' },
+      },
+      fetcher,
+    );
+    if (!response.ok || !isPage(response.body)) return [];
+
+    return response.body.value ?? [];
   },
 });
 

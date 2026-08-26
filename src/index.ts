@@ -12,5 +12,6 @@ export * from "./placement";
 export * from "./stores/inMemoryStateStore";
 export * from "./types";
 export * from "./utils";
+export * from "./verification";
 export * from "./webhooks/gmail";
 export * from "./webhooks/microsoft";

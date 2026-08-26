@@ -12,5 +12,6 @@
     "strict": true,
     "target": "ES2023"
   },
+  "exclude": ["src/**/*.test.ts"],
   "include": ["src/**/*.ts"]
 }
