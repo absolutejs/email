@@ -13,5 +13,6 @@ export * from "./stores/inMemoryStateStore";
 export * from "./types";
 export * from "./utils";
 export * from "./verification";
+export * from "./verification-imap";
 export * from "./webhooks/gmail";
 export * from "./webhooks/microsoft";

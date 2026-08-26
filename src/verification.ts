@@ -1,7 +1,5 @@
 import type { GmailClient } from "./adapters/gmail";
 import { gmailMessagesToNormalized } from "./adapters/gmail";
-import type { ImapFetchOptions, ImapMailboxConfig } from "./adapters/imap";
-import { fetchImapMessages } from "./adapters/imap";
 import type { MicrosoftEmailClient } from "./adapters/microsoft";
 import { microsoftMessagesToNormalized } from "./adapters/microsoft";
 import type { EmailProvider, NormalizedEmailMessage } from "./types";
@@ -267,23 +265,5 @@ export const createMicrosoftVerificationMessageLookup = (input: {
       [...messages.values()].slice(0, maxCandidates),
       { accountEmail: input.accountEmail },
     );
-  },
-});
-
-export const createImapVerificationMessageLookup = (input: {
-  readonly config: ImapMailboxConfig;
-  readonly fetch?: (
-    config: ImapMailboxConfig,
-    options: ImapFetchOptions,
-  ) => ReturnType<typeof fetchImapMessages>;
-  readonly maxCandidates?: number;
-}): EmailVerificationMessageLookup => ({
-  find: async (query) => {
-    const fetcher = input.fetch ?? fetchImapMessages;
-    const result = await fetcher(input.config, {
-      limit: input.maxCandidates ?? DEFAULT_MAX_CANDIDATES,
-      since: query.notBefore,
-    });
-    return result.messages;
   },
 });

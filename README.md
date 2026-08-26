@@ -27,6 +27,10 @@ Host applications own product policy:
 and IMAP lookups plus a strict parser for Agent Exchange source adapters. It is a
 library API, deliberately absent from the package's model-facing manifest tools.
 
+The main verification entry point is browser-safe for Gmail and Microsoft Graph.
+Import the server-only IMAP lookup from `@absolutejs/email/verification/imap` so
+browser bundles never pull in Node TLS or `imapflow`.
+
 Profiles bind a mailbox lookup to exact HTTPS origins, provider names, sender
 addresses, subject markers, body markers, a short time window, and one code
 length. Retrieval fails closed if there is no match, more than one matching

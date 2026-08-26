@@ -5,13 +5,13 @@ import { manifest } from "./manifest";
 import type { NormalizedEmailMessage } from "./types";
 import {
   createGmailVerificationMessageLookup,
-  createImapVerificationMessageLookup,
   createMicrosoftVerificationMessageLookup,
   EmailVerificationError,
   resolveEmailVerificationCode,
   retrieveEmailVerificationCode,
   type EmailVerificationProfile,
 } from "./verification";
+import { createImapVerificationMessageLookup } from "./verification-imap";
 
 const NOW = new Date("2026-08-26T10:00:00.000Z");
 const PROFILE: EmailVerificationProfile = {

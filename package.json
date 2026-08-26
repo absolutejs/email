@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/email",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Provider-neutral email sync adapters for AbsoluteJS: Gmail, Microsoft Graph, and IMAP.",
   "repository": {
     "type": "git",
@@ -24,6 +24,7 @@
     "dist/manifest.js",
     "dist/manifest.json",
     "dist/verification.js",
+    "dist/verification-imap.js",
     "README.md"
   ],
   "exports": {
@@ -35,6 +36,10 @@
       "types": "./dist/verification.d.ts",
       "import": "./dist/verification.js"
     },
+    "./verification/imap": {
+      "types": "./dist/verification-imap.d.ts",
+      "import": "./dist/verification-imap.js"
+    },
     "./manifest": {
       "types": "./dist/manifest.d.ts",
       "import": "./dist/manifest.js"
@@ -42,7 +47,7 @@
     "./manifest.json": "./dist/manifest.json"
   },
   "scripts": {
-    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts src/verification.ts --outdir dist --root src --target=bun --external imapflow && tsc --emitDeclarationOnly --project tsconfig.json && absolute-manifest emit",
+    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts src/verification.ts src/verification-imap.ts --outdir dist --root src --target=bun --external imapflow && tsc --emitDeclarationOnly --project tsconfig.json && absolute-manifest emit",
     "check:package": "bun run typecheck && bun run test && bun run build && bun run verify-package",
     "format": "prettier --write \"./**/*.{js,ts,json,md}\"",
     "format:check": "prettier --check \"./**/*.{js,ts,json,md}\"",
