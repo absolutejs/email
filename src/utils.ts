@@ -17,7 +17,9 @@ export const stripHtml = (value: string | null | undefined) =>
 
 export const parseDate = (value: string | number | undefined) => {
   if (value === undefined) return new Date(Number.NaN);
-  const parsed = new Date(value);
+  const parsed = new Date(
+    typeof value === "string" && /^\d+$/u.test(value) ? Number(value) : value,
+  );
 
   return parsed;
 };

@@ -260,6 +260,7 @@ describe("provider lookups", () => {
 
     const found = await lookup.find(query);
     expect(found).toHaveLength(1);
+    expect(found[0]?.occurredAt).toEqual(NOW);
     expect(queries[0]).toContain("from:security@example.com");
     expect(queries[0]).toContain(`after:${query.notBefore.getTime() / 1000}`);
   });
