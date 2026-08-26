@@ -84,8 +84,15 @@ export const fetchImapMessages = async (
         uid: true,
       })) {
         if (options.cursor && message.uid <= Number(options.cursor)) continue;
-        const envelopeDate = message.envelope?.date;
-        if (options.since && envelopeDate && envelopeDate < options.since) {
+        const occurredAt = parseDate(
+          message.internalDate instanceof Date
+            ? message.internalDate.toISOString()
+            : message.internalDate,
+        );
+        if (
+          options.since &&
+          (!Number.isFinite(occurredAt.getTime()) || occurredAt < options.since)
+        ) {
           continue;
         }
         const text = message.bodyParts?.get("text")?.toString("utf8") ?? null;
@@ -100,11 +107,7 @@ export const fetchImapMessages = async (
           direction: directionFor(config.accountEmail, from?.address),
           from,
           id: `imap:${config.accountEmail}:${message.uid}`,
-          occurredAt: parseDate(
-            message.internalDate instanceof Date
-              ? message.internalDate.toISOString()
-              : message.internalDate,
-          ),
+          occurredAt,
           provider: "imap",
           raw: { uid: message.uid },
           snippet: text ? text.slice(0, 240) : null,
