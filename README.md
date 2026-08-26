@@ -32,9 +32,11 @@ Import the server-only IMAP lookup from `@absolutejs/email/verification/imap` so
 browser bundles never pull in Node TLS or `imapflow`.
 
 Profiles bind a mailbox lookup to exact HTTPS origins, provider names, sender
-addresses, subject markers, body markers, a short time window, and one code
-length. Retrieval fails closed if there is no match, more than one matching
-message, or more than one marker-bound code.
+addresses, trusted RFC 8601 authentication services, aligned DMARC results,
+subject markers, body markers, a short time window, and one code length.
+Retrieval fails closed on missing or duplicated authentication evidence,
+unavailable candidates, excessive candidate/body sizes, no match, more than one
+matching message, or more than one marker-bound code occurrence.
 
 ```ts
 import {
@@ -55,6 +57,10 @@ const result = await retrieveEmailVerificationCode(
       origins: ["https://accounts.example.com"],
       providers: ["gmail"],
       senderAddresses: ["security@example.com"],
+      senderAuthentication: {
+        allowedHeaderFromDomains: ["example.com"],
+        trustedAuthservIds: ["mx.mailbox.example"],
+      },
       subjectIncludesAny: ["sign in"],
     },
   },
@@ -64,6 +70,13 @@ const result = await retrieveEmailVerificationCode(
 // it, log it, add it to a prompt, or return it from an agent tool.
 result.bytes.fill(0);
 ```
+
+`trustedAuthservIds` is deployment-specific. Configure only the authserv-id
+inserted inside your mailbox provider's trusted boundary; never copy an
+untrusted `Authentication-Results` header from farther upstream. The required
+DMARC pass must align exactly with both the visible sender domain and an
+allowlisted domain. For cross-agent requests, also pass an unpredictable
+request challenge through `requiredBodyText`; time-only correlation is weaker.
 
 Email codes remain bearer values and are not phishing-resistant. Prefer OAuth,
 passkeys, or provider-native delegated actions whenever the upstream service

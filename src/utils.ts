@@ -16,10 +16,10 @@ export const stripHtml = (value: string | null | undefined) =>
     .trim();
 
 export const parseDate = (value: string | number | undefined) => {
-  if (value === undefined) return new Date();
+  if (value === undefined) return new Date(Number.NaN);
   const parsed = new Date(value);
 
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  return parsed;
 };
 
 export const directionFor = (accountEmail: string, from?: string | null) =>

@@ -41,6 +41,18 @@ const addressList = (
     }))
     .filter((item) => item.address);
 
+const authenticationResultsFromHeaders = (headers: Buffer | undefined) =>
+  (headers?.toString("utf8") ?? "")
+    .replace(/\r?\n[\t ]+/gu, " ")
+    .split(/\r?\n/gu)
+    .flatMap((line) => {
+      const separator = line.indexOf(":");
+      return separator > 0 &&
+        line.slice(0, separator).toLowerCase() === "authentication-results"
+        ? [line.slice(separator + 1).trim()]
+        : [];
+    });
+
 export const fetchImapMessages = async (
   config: ImapMailboxConfig,
   options: ImapFetchOptions = {},
@@ -54,7 +66,7 @@ export const fetchImapMessages = async (
   });
   await client.connect();
   try {
-      const lock = await client.getMailboxLock(config.mailbox ?? DEFAULT_MAILBOX);
+    const lock = await client.getMailboxLock(config.mailbox ?? DEFAULT_MAILBOX);
     try {
       const mailbox = client.mailbox;
       const exists = mailbox ? mailbox.exists : 0;
@@ -67,6 +79,8 @@ export const fetchImapMessages = async (
       for await (const message of client.fetch(sequence, {
         bodyParts: ["text"],
         envelope: true,
+        headers: ["authentication-results"],
+        internalDate: true,
         uid: true,
       })) {
         if (options.cursor && message.uid <= Number(options.cursor)) continue;
@@ -79,11 +93,18 @@ export const fetchImapMessages = async (
         highestUid = Math.max(highestUid, message.uid);
         messages.push({
           accountEmail: cleanEmail(config.accountEmail),
+          authenticationResults: authenticationResultsFromHeaders(
+            message.headers,
+          ),
           bodyText: text,
           direction: directionFor(config.accountEmail, from?.address),
           from,
           id: `imap:${config.accountEmail}:${message.uid}`,
-          occurredAt: parseDate(message.envelope?.date?.toISOString()),
+          occurredAt: parseDate(
+            message.internalDate instanceof Date
+              ? message.internalDate.toISOString()
+              : message.internalDate,
+          ),
           provider: "imap",
           raw: { uid: message.uid },
           snippet: text ? text.slice(0, 240) : null,
@@ -94,7 +115,7 @@ export const fetchImapMessages = async (
       }
 
       return {
-        cursor: highestUid > 0 ? String(highestUid) : options.cursor ?? null,
+        cursor: highestUid > 0 ? String(highestUid) : (options.cursor ?? null),
         messages,
       };
     } finally {

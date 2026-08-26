@@ -89,6 +89,13 @@ const header = (message: GmailMessage, name: string) =>
     (item) => item.name?.toLowerCase() === name.toLowerCase(),
   )?.value ?? null;
 
+const headerValues = (message: GmailMessage, name: string) =>
+  (message.payload?.headers ?? []).flatMap((item) =>
+    item.name?.toLowerCase() === name.toLowerCase() && item.value !== undefined
+      ? [item.value]
+      : [],
+  );
+
 const collectPartText = (part: GmailMessagePart | undefined): string | null => {
   if (!part) return null;
   if (part.mimeType === "text/plain" && part.body?.data) {
@@ -255,6 +262,7 @@ export const gmailMessageToNormalized = (
 
   return {
     accountEmail: cleanEmail(input.accountEmail),
+    authenticationResults: headerValues(message, "authentication-results"),
     bodyText,
     cc: parseAddressList(header(message, "cc")),
     direction: directionFor(input.accountEmail, from.address),

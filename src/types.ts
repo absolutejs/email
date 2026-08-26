@@ -7,6 +7,8 @@ export type EmailAddress = {
 
 export type NormalizedEmailMessage = {
   accountEmail: string;
+  /** Raw RFC 8601 values. Consumers must trust only explicitly configured authserv-ids. */
+  authenticationResults?: string[];
   bodyText?: string | null;
   /** Cc recipients — reply-all needs the full participant list, not just To. */
   cc?: EmailAddress[];

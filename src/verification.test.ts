@@ -20,6 +20,10 @@ const PROFILE: EmailVerificationProfile = {
   origins: ["https://accounts.example.com"],
   providers: ["gmail", "microsoft", "imap"],
   senderAddresses: ["security@example.com"],
+  senderAuthentication: {
+    allowedHeaderFromDomains: ["example.com"],
+    trustedAuthservIds: ["mx.mailbox.example"],
+  },
   subjectIncludesAny: ["sign in"],
 };
 
@@ -27,7 +31,10 @@ const message = (
   overrides: Partial<NormalizedEmailMessage> = {},
 ): NormalizedEmailMessage => ({
   accountEmail: "member@example.net",
-  bodyText: "Your verification code is: 482193. It expires soon.",
+  authenticationResults: [
+    "mx.mailbox.example; dmarc=pass header.from=example.com",
+  ],
+  bodyText: "Your verification code: 482193. It expires soon.",
   direction: "inbound",
   from: { address: "security@example.com" },
   id: "message-1",
@@ -56,6 +63,7 @@ describe("deterministic email verification parsing", () => {
       messageId: "message-1",
       parserId: PROFILE.id,
       provider: "gmail",
+      senderAuthenticated: true,
     });
     expect(JSON.stringify(result.evidence)).not.toContain("482193");
   });
@@ -112,6 +120,93 @@ describe("deterministic email verification parsing", () => {
     ).toThrow(new EmailVerificationError("no_match"));
   });
 
+  test("requires one trusted, aligned DMARC pass", () => {
+    const rejected = [
+      message({ authenticationResults: [] }),
+      message({
+        authenticationResults: [
+          "attacker.example; dmarc=pass header.from=example.com",
+        ],
+      }),
+      message({
+        authenticationResults: [
+          "mx.mailbox.example; dmarc=fail header.from=example.com",
+        ],
+      }),
+      message({
+        authenticationResults: [
+          "mx.mailbox.example; dmarc=pass header.from=attacker.example",
+        ],
+      }),
+      message({
+        authenticationResults: [
+          "mx.mailbox.example; dmarc=pass header.from=example.com",
+          "mx.mailbox.example; dmarc=pass header.from=example.com",
+        ],
+      }),
+    ];
+
+    for (const candidate of rejected) {
+      expect(() => resolveEmailVerificationCode([candidate], query)).toThrow(
+        new EmailVerificationError("no_match"),
+      );
+    }
+  });
+
+  test("rejects repeated codes, invalid dates, and missing correlation text", () => {
+    expect(() =>
+      resolveEmailVerificationCode(
+        [
+          message({
+            bodyText: "Verification code: 482193. Verification code: 482193.",
+          }),
+        ],
+        query,
+      ),
+    ).toThrow(new EmailVerificationError("ambiguous_match"));
+    expect(() =>
+      resolveEmailVerificationCode(
+        [message({ occurredAt: new Date(Number.NaN) })],
+        query,
+      ),
+    ).toThrow(new EmailVerificationError("no_match"));
+    expect(() =>
+      resolveEmailVerificationCode([message()], {
+        ...query,
+        requiredBodyText: ["challenge-that-is-not-present"],
+      }),
+    ).toThrow(new EmailVerificationError("no_match"));
+  });
+
+  test("bounds lookup windows, candidates, bodies, and provider queries", async () => {
+    expect(() =>
+      resolveEmailVerificationCode([message()], {
+        ...query,
+        notBefore: new Date(NOW.getTime() - 10 * 60_000 - 1),
+      }),
+    ).toThrow(new EmailVerificationError("invalid_profile"));
+    expect(() =>
+      resolveEmailVerificationCode([message(), message({ id: "message-2" })], {
+        ...query,
+        maxCandidates: 1,
+      }),
+    ).toThrow(new EmailVerificationError("candidate_limit"));
+
+    let lookups = 0;
+    await expect(
+      retrieveEmailVerificationCode(
+        {
+          find: async () => {
+            lookups += 1;
+            return [];
+          },
+        },
+        { ...query, accountEmail: "member@example.net after:0" },
+      ),
+    ).rejects.toEqual(new EmailVerificationError("invalid_profile"));
+    expect(lookups).toBe(0);
+  });
+
   test("maps lookup failures to a safe error without leaking provider text", async () => {
     await expect(
       retrieveEmailVerificationCode(
@@ -138,6 +233,10 @@ describe("provider lookups", () => {
             { name: "From", value: "security@example.com" },
             { name: "To", value: "member@example.net" },
             { name: "Subject", value: "Sign in" },
+            {
+              name: "Authentication-Results",
+              value: "mx.mailbox.example; dmarc=pass header.from=example.com",
+            },
           ],
           mimeType: "text/plain",
           body: {
@@ -166,26 +265,34 @@ describe("provider lookups", () => {
   });
 
   test("Microsoft uses Graph search with selected body fields and local normalization", async () => {
-    let requestUrl = "";
+    const requestUrls: string[] = [];
     let prefer = "";
     const client = createMicrosoftGraphEmailClient(
       { accessToken: "secret-token" },
       (async (input, init) => {
-        requestUrl = String(input);
+        const requestUrl = String(input);
+        requestUrls.push(requestUrl);
         prefer = new Headers(init?.headers).get("Prefer") ?? "";
+        if (requestUrl.includes("/messages/graph-1?")) {
+          return Response.json({
+            body: { content: "Verification code: 482193" },
+            from: { emailAddress: { address: "security@example.com" } },
+            id: "graph-1",
+            internetMessageHeaders: [
+              {
+                name: "Authentication-Results",
+                value: "mx.mailbox.example; dmarc=pass header.from=example.com",
+              },
+            ],
+            receivedDateTime: NOW.toISOString(),
+            subject: "Sign in",
+            toRecipients: [{ emailAddress: { address: "member@example.net" } }],
+          });
+        }
         return Response.json({
           value: [
             {
-              body: { content: "Verification code: 482193" },
-              from: {
-                emailAddress: { address: "security@example.com" },
-              },
               id: "graph-1",
-              receivedDateTime: NOW.toISOString(),
-              subject: "Sign in",
-              toRecipients: [
-                { emailAddress: { address: "member@example.net" } },
-              ],
             },
           ],
         });
@@ -198,10 +305,10 @@ describe("provider lookups", () => {
 
     const found = await lookup.find(query);
     expect(found).toHaveLength(1);
-    expect(requestUrl).toContain("%24search");
-    expect(requestUrl).toContain("from%3Asecurity%40example.com");
-    expect(requestUrl).toContain("body");
-    expect(requestUrl).not.toContain("secret-token");
+    expect(requestUrls[0]).toContain("%24search");
+    expect(requestUrls[0]).toContain("from%3Asecurity%40example.com");
+    expect(requestUrls[1]).toContain("internetMessageHeaders");
+    expect(requestUrls.join("\n")).not.toContain("secret-token");
     expect(prefer).toContain("text");
   });
 
@@ -221,7 +328,7 @@ describe("provider lookups", () => {
     });
 
     expect(await lookup.find(query)).toHaveLength(1);
-    expect(options).toEqual({ limit: 7, since: query.notBefore });
+    expect(options).toEqual({ limit: 8, since: query.notBefore });
   });
 });
 

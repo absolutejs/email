@@ -31,6 +31,7 @@ export type MicrosoftGraphMessage = {
   from?: MicrosoftGraphRecipient;
   id?: string;
   internetMessageId?: string;
+  internetMessageHeaders?: { name?: string; value?: string }[];
   receivedDateTime?: string;
   sentDateTime?: string;
   subject?: string | null;
@@ -58,6 +59,7 @@ export type MicrosoftEmailClient = {
     resource?: string;
     subscriptionId?: string | null;
   }) => Promise<EmailSubscriptionResult>;
+  getMessage: (id: string) => Promise<MicrosoftGraphMessage | null>;
   listDelta: (input?: {
     cursor?: string | null;
     pageSize?: number;
@@ -93,6 +95,14 @@ const searchUrl = (query: string, maxResults: number) => {
   });
 
   return `${GRAPH_BASE}/me/messages?${params.toString()}`;
+};
+
+const messageUrl = (id: string) => {
+  const params = new URLSearchParams({
+    $select:
+      "id,internetMessageId,internetMessageHeaders,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime",
+  });
+  return `${GRAPH_BASE}/me/messages/${encodeURIComponent(id)}?${params.toString()}`;
 };
 
 const graphEmail = (recipient: MicrosoftGraphRecipient | undefined) =>
@@ -133,6 +143,17 @@ export const createMicrosoftGraphEmailClient = (
         : input.expiration,
       id: response.body.id ?? input.subscriptionId ?? null,
     };
+  },
+  getMessage: async (id) => {
+    const response = await fetchJson<MicrosoftGraphMessage>(
+      messageUrl(id),
+      credential.accessToken,
+      {
+        headers: { Prefer: 'outlook.body-content-type="text"' },
+      },
+      fetcher,
+    );
+    return response.ok && isPage(response.body) ? response.body : null;
   },
   listDelta: async (input = {}) => {
     const response = await fetchJson<MicrosoftGraphMessagePage>(
@@ -180,6 +201,13 @@ export const microsoftMessageToNormalized = (
 
   return {
     accountEmail: cleanEmail(input.accountEmail),
+    authenticationResults: (message.internetMessageHeaders ?? []).flatMap(
+      (item) =>
+        item.name?.toLowerCase() === "authentication-results" &&
+        item.value !== undefined
+          ? [item.value]
+          : [],
+    ),
     bodyText,
     cc:
       message.ccRecipients
