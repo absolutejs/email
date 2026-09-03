@@ -1,7 +1,7 @@
 {
   "name": "@absolutejs/email",
-  "version": "0.3.2",
-  "description": "Provider-neutral email sync adapters for AbsoluteJS: Gmail, Microsoft Graph, and IMAP.",
+  "version": "0.4.0",
+  "description": "Provider-neutral email sync and inbound adapters for AbsoluteJS: Gmail, Microsoft Graph, IMAP, and Resend Inbound.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/absolutejs/email.git"

@@ -119,6 +119,25 @@ const normalized = microsoftMessagesToNormalized(messages, {
 });
 ```
 
+## Inbound mail (Resend)
+
+Resend's `email.received` webhook carries metadata only; the body and headers
+come from the receiving API. `resolveResendInboundEmail` does both and returns
+a provider-neutral `InboundEmailMessage`. `stripQuotedReply` isolates the
+sender's own words (quoted history, signatures, mobile sign-offs and Outlook
+header blocks removed) so a host can act on a reply or preview it.
+
+```ts
+import { resolveResendInboundEmail, stripQuotedReply } from "@absolutejs/email";
+
+const email = await resolveResendInboundEmail(resendApiKey, webhookBody);
+if (email) {
+  const alias = email.to.find((to) => to.address.startsWith("r+"));
+  const words = stripQuotedReply(email.text, { maxLength: 4000 });
+  // route by alias, dedupe on email.emailId, thread on email.inReplyTo
+}
+```
+
 ## IMAP
 
 ```ts
