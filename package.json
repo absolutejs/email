@@ -65,7 +65,7 @@
     "imapflow": "^1.4.1"
   },
   "devDependencies": {
-    "@absolutejs/changelog": "^0.4.0",
+    "@absolutejs/changelog": "^0.5.1",
     "@types/bun": "1.3.14",
     "prettier": "^3.9.0",
     "typescript": "5.9.3"
