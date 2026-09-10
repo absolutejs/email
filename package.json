@@ -56,7 +56,8 @@
     "release": "bun run check:package && npm publish --access public",
     "test": "bun test",
     "typecheck": "bun run tsc --noEmit",
-    "verify-package": "absolute-manifest verify-package"
+    "verify-package": "absolute-manifest verify-package",
+    "prepublishOnly": "absolute-changelog check"
   },
   "dependencies": {
     "@absolutejs/manifest": "^0.9.0",
@@ -64,7 +65,7 @@
     "imapflow": "^1.4.1"
   },
   "devDependencies": {
-    "@absolutejs/changelog": "^0.1.2",
+    "@absolutejs/changelog": "^0.2.0",
     "@types/bun": "1.3.14",
     "prettier": "^3.9.0",
     "typescript": "5.9.3"
