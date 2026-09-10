@@ -19,13 +19,15 @@
     "manifestContract": 2
   },
   "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "changelog.json",
     "dist/**/*.d.ts",
     "dist/index.js",
     "dist/manifest.js",
     "dist/manifest.json",
-    "dist/verification.js",
     "dist/verification-imap.js",
-    "README.md"
+    "dist/verification.js"
   ],
   "exports": {
     ".": {
@@ -48,7 +50,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && bun build src/index.ts src/manifest.ts src/verification.ts src/verification-imap.ts --outdir dist --root src --target=bun --external imapflow && tsc --emitDeclarationOnly --project tsconfig.json && absolute-manifest emit",
-    "check:package": "bun run typecheck && bun run test && bun run build && bun run verify-package",
+    "check:package": "bun run typecheck && bun run test && bun run build && bun run verify-package && absolute-changelog check",
     "format": "prettier --write \"./**/*.{js,ts,json,md}\"",
     "format:check": "prettier --check \"./**/*.{js,ts,json,md}\"",
     "release": "bun run check:package && npm publish --access public",
@@ -62,6 +64,7 @@
     "imapflow": "^1.4.1"
   },
   "devDependencies": {
+    "@absolutejs/changelog": "^0.1.2",
     "@types/bun": "1.3.14",
     "prettier": "^3.9.0",
     "typescript": "5.9.3"
