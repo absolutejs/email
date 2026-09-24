@@ -151,3 +151,11 @@ const result = await fetchImapMessages({
   secure: true,
 });
 ```
+
+Verification profiles may opt into `codeLayout: "standalone-after-marker"` for
+messages that display the code on its own line after introductory text. An exact
+configured body marker must precede the code within 512 characters. Multiple codes
+or matching messages remain ambiguous and fail closed. Sender authentication,
+recipient, service origin, subject, time window and candidate limits still apply.
+Gmail and Microsoft HTML normalization preserves block boundaries for this layout.
+The default layout remains a code immediately following its configured marker.

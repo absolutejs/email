@@ -102,7 +102,7 @@ const collectPartText = (part: GmailMessagePart | undefined): string | null => {
     return decodeBase64Url(part.body.data);
   }
   if (part.mimeType === "text/html" && part.body?.data) {
-    return stripHtml(decodeBase64Url(part.body.data));
+    return stripHtml(decodeBase64Url(part.body.data), true);
   }
   const nested = part.parts
     ?.map((child) => collectPartText(child))
