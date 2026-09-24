@@ -3,16 +3,23 @@ import type { EmailAddress, EmailFetch, FetchJsonResult } from "./types";
 export const cleanEmail = (value: string | null | undefined) =>
   (value ?? "").trim().toLowerCase();
 
-export const stripHtml = (value: string | null | undefined) =>
+export const stripHtml = (
+  value: string | null | undefined,
+  preserveLines = false,
+) =>
   (value ?? "")
     .replace(/<style[\s\S]*?<\/style>/giu, " ")
     .replace(/<script[\s\S]*?<\/script>/giu, " ")
+    .replace(
+      /<\/?(?:p|div|tr|td|h[1-6]|br|li|table)\b[^>]*>/giu,
+      preserveLines ? "\n" : " ",
+    )
     .replace(/<[^>]+>/gu, " ")
     .replace(/&nbsp;/giu, " ")
     .replace(/&amp;/giu, "&")
     .replace(/&lt;/giu, "<")
     .replace(/&gt;/giu, ">")
-    .replace(/\s+/gu, " ")
+    .replace(preserveLines ? /[ \t]+/gu : /\s+/gu, " ")
     .trim();
 
 export const parseDate = (value: string | number | undefined) => {

@@ -25,6 +25,7 @@ export type EmailSenderAuthenticationPolicy = {
 export type EmailVerificationProfile = {
   readonly bodyMarkers: readonly string[];
   readonly codeLength?: number;
+  readonly codeLayout?: "after-marker" | "standalone-after-marker";
   readonly id: string;
   readonly maxMarkerGap?: number;
   readonly origins: readonly string[];
@@ -186,6 +187,10 @@ const normalizedProfile = (profile: EmailVerificationProfile) => {
     !Number.isSafeInteger(maxMarkerGap) ||
     maxMarkerGap < 0 ||
     maxMarkerGap > 64 ||
+    (profile.codeLayout !== undefined &&
+      !["after-marker", "standalone-after-marker"].includes(
+        profile.codeLayout,
+      )) ||
     !validValues(profile.bodyMarkers) ||
     !validValues(profile.subjectIncludesAny) ||
     !validValues(profile.origins, validOrigin) ||
@@ -289,6 +294,18 @@ const codeOccurrencesAfterMarkers = (
       const markerIndex = lowerBody.indexOf(marker, start);
       if (markerIndex < 0) break;
       const valueStart = markerIndex + marker.length;
+      if (profile.codeLayout === "standalone-after-marker") {
+        // Only complete lines within a bounded region after an explicit marker.
+        const region = body.slice(valueStart, valueStart + 512);
+        const pattern = new RegExp(
+          `^[ \t]*(\\d{${codeLength}})[ \t]*\\r?$`,
+          "gmu",
+        );
+        for (const candidate of region.matchAll(pattern))
+          if (candidate[1]) codes.push(candidate[1]);
+        start = Math.max(valueStart, markerIndex + 1);
+        continue;
+      }
       const window = body.slice(
         valueStart,
         valueStart + maxMarkerGap + codeLength + 1,

@@ -1,3 +1,4 @@
+import { gmailMessageToNormalized } from "./adapters/gmail";
 import { describe, expect, test } from "bun:test";
 import type { GmailClient } from "./adapters/gmail";
 import { createMicrosoftGraphEmailClient } from "./adapters/microsoft";
@@ -345,4 +346,85 @@ test("source contracts use type aliases, not interfaces", async () => {
     new URL("./verification.ts", import.meta.url),
   ).text();
   expect(source).not.toMatch(/\binterface\s+[A-Za-z_$]/u);
+});
+
+test("standalone layout is explicit, bounded, authenticated and rejects multiple codes", () => {
+  const profile = {
+    ...PROFILE,
+    codeLayout: "standalone-after-marker" as const,
+    bodyMarkers: ["different device"],
+  };
+  const bodyText =
+    "It looks like you tried to sign in from a different device.\n\n482193\n\nIgnore this if it was not you.";
+  expect(
+    new TextDecoder().decode(
+      resolveEmailVerificationCode([message({ bodyText })], {
+        ...query,
+        profile,
+      }).bytes,
+    ),
+  ).toBe("482193");
+  for (const body of [
+    "482193\ndifferent device",
+    "different device\n" + "x".repeat(513) + "\n482193",
+    "different device\n482193\n591204",
+    "different device\nvalue=482193",
+    "different device\n4821937",
+  ]) {
+    expect(() =>
+      resolveEmailVerificationCode([message({ bodyText: body })], {
+        ...query,
+        profile,
+      }),
+    ).toThrow();
+  }
+  expect(() =>
+    resolveEmailVerificationCode(
+      [message({ bodyText, authenticationResults: [] })],
+      { ...query, profile },
+    ),
+  ).toThrow();
+  expect(() =>
+    resolveEmailVerificationCode([message({ bodyText })], {
+      ...query,
+      profile: { ...profile, codeLayout: "after-marker" },
+    }),
+  ).toThrow();
+});
+
+test("HTML-only Gmail preserves standalone code boundaries", () => {
+  const body =
+    "<p>Different device</p><div><strong>482193</strong></div><p>Expires shortly</p>";
+  const normalized = gmailMessageToNormalized(
+    {
+      id: "html",
+      internalDate: String(NOW.getTime()),
+      payload: {
+        mimeType: "text/html",
+        headers: [
+          { name: "from", value: "security@example.com" },
+          { name: "to", value: "member@example.net" },
+          { name: "subject", value: "Sign in to Example" },
+          {
+            name: "authentication-results",
+            value: "mx.mailbox.example; dmarc=pass header.from=example.com",
+          },
+        ],
+        body: { data: Buffer.from(body).toString("base64url") },
+      },
+    },
+    { accountEmail: "member@example.net" },
+  )!;
+  expect(
+    new TextDecoder().decode(
+      resolveEmailVerificationCode([normalized], {
+        ...query,
+        profile: {
+          ...PROFILE,
+          bodyMarkers: ["Different device"],
+          codeLayout: "standalone-after-marker",
+        },
+      }).bytes,
+    ),
+  ).toBe("482193");
 });

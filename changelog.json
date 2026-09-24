@@ -1,5 +1,20 @@
 {
 	"contract": 1,
 	"name": "@absolutejs/email",
-	"releases": []
+	"releases": [
+		{
+			"changes": [
+				{
+					"kind": "added",
+					"summary": "Verification profiles can explicitly match standalone code lines after a trusted marker; HTML normalization can preserve block boundaries.",
+					"symbols": [
+						"EmailVerificationProfile",
+						"stripHtml"
+					]
+				}
+			],
+			"date": "2026-09-24",
+			"version": "0.6.0"
+		}
+	]
 }
