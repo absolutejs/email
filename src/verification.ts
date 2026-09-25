@@ -14,6 +14,8 @@ const MAX_AUTHENTICATION_HEADERS = 10;
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_CANDIDATES = 100;
 const MAX_LOOKUP_WINDOW_MS = 10 * 60_000;
+// "newest" selection may look further back: only the latest match is ever used.
+const MAX_NEWEST_LOOKUP_WINDOW_MS = 24 * 60 * 60_000;
 const MAX_PROFILE_VALUES = 20;
 const MAX_PROFILE_VALUE_LENGTH = 256;
 
@@ -38,6 +40,12 @@ export type EmailVerificationProfile = {
 export type EmailVerificationLookupInput = {
   readonly accountEmail: string;
   readonly maxCandidates?: number;
+  /**
+   * "unique" (default) fails when more than one message matches. "newest" uses the
+   * most recent authenticated match, for services whose emails carry no per-request
+   * challenge; it allows a lookup window of up to 24 hours.
+   */
+  readonly selection?: "unique" | "newest";
   readonly notAfter: Date;
   readonly notBefore: Date;
   readonly profile: EmailVerificationProfile;
@@ -259,7 +267,13 @@ const validatedInput = (
     !Number.isFinite(notBefore) ||
     !Number.isFinite(notAfter) ||
     notAfter < notBefore ||
-    notAfter - notBefore > MAX_LOOKUP_WINDOW_MS ||
+    (input.selection !== undefined &&
+      input.selection !== "unique" &&
+      input.selection !== "newest") ||
+    notAfter - notBefore >
+      (input.selection === "newest"
+        ? MAX_NEWEST_LOOKUP_WINDOW_MS
+        : MAX_LOOKUP_WINDOW_MS) ||
     (requiredBodyText.length > 0 && !validValues(requiredBodyText))
   ) {
     invalidProfile();
@@ -424,10 +438,20 @@ export const resolveEmailVerificationCode = (
   }
 
   if (matches.length === 0) throw new EmailVerificationError("no_match");
-  if (matches.length !== 1) {
+  let match = matches[0]!;
+  if (input.selection === "newest") {
+    const time = (m: (typeof matches)[number]) =>
+      m.message.occurredAt.getTime();
+    const newest = Math.max(...matches.map(time));
+    const latest = matches.filter((m) => time(m) === newest);
+    // Two different codes at the same instant cannot be ordered safely.
+    if (new Set(latest.map((m) => m.code)).size !== 1) {
+      throw new EmailVerificationError("ambiguous_match");
+    }
+    match = latest[0]!;
+  } else if (matches.length !== 1) {
     throw new EmailVerificationError("ambiguous_match");
   }
-  const match = matches[0]!;
   if (
     match.message.id.length === 0 ||
     match.message.id.length > 512 ||
@@ -490,15 +514,18 @@ export const createGmailVerificationMessageLookup = (input: {
       input.maxCandidates,
       query.maxCandidates,
     );
+    const newest = query.selection === "newest";
     const references = new Map<string, { id: string }>();
     for (const sender of validation.senders) {
       const found = await input.client.searchMessages({
-        maxResults: maxCandidates + 1,
+        maxResults: newest ? maxCandidates : maxCandidates + 1,
         query: `from:${sender} after:${Math.floor(validation.notBefore / 1000)} before:${Math.ceil(validation.notAfter / 1000)}`,
       });
+      // Gmail returns newest first, so "newest" keeps the most recent candidates.
       for (const message of found) references.set(message.id, message);
       if (references.size > maxCandidates) {
-        throw new EmailVerificationError("candidate_limit");
+        if (!newest) throw new EmailVerificationError("candidate_limit");
+        break;
       }
     }
     const normalized = await gmailMessagesToNormalized(
