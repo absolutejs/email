@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/email",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Provider-neutral email sync and inbound adapters for AbsoluteJS: Gmail, Microsoft Graph, IMAP, and Resend Inbound.",
   "repository": {
     "type": "git",
@@ -49,7 +49,7 @@
     "./manifest.json": "./dist/manifest.json"
   },
   "scripts": {
-    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts src/verification.ts src/verification-imap.ts --outdir dist --root src --target=bun --external imapflow && tsc --emitDeclarationOnly --project tsconfig.json && absolute-manifest emit",
+    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts src/verification.ts src/verification-imap.ts --outdir dist --root src --target=bun --external imapflow && tsc --emitDeclarationOnly --project tsconfig.build.json && absolute-manifest emit",
     "check:package": "bun run typecheck && bun run test && bun run build && bun run verify-package && absolute-changelog check",
     "format": "prettier --write \"./**/*.{js,ts,json,md}\"",
     "format:check": "prettier --check \"./**/*.{js,ts,json,md}\"",

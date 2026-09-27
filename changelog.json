@@ -1,5 +1,19 @@
 {
 	"contract": 1,
 	"name": "@absolutejs/email",
-	"releases": []
+	"releases": [
+		{
+			"changes": [
+				{
+					"kind": "fixed",
+					"summary": "Validate Gmail push payloads and normalize safe numeric history cursors without rounding unsafe values.",
+					"symbols": [
+						"parseGmailPubSubWebhook"
+					]
+				}
+			],
+			"date": "2026-09-27",
+			"version": "0.4.1"
+		}
+	]
 }
