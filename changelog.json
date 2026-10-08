@@ -5,6 +5,20 @@
 		{
 			"changes": [
 				{
+					"detail": "The Gmail push validation fix shipped as 0.4.1 on the older 0.4 line, so 0.6 and 0.7 never had it. Gmail Pub/Sub push payloads are validated, and numeric history cursors are normalized only when they are safe integers, so a large cursor is never rounded.",
+					"kind": "fixed",
+					"summary": "Validate Gmail push payloads and keep large history cursors exact (the 0.4.1 fix, now on the current line)",
+					"symbols": [
+						"parseGmailPubSubWebhook"
+					]
+				}
+			],
+			"date": "2026-10-08",
+			"version": "0.7.1"
+		},
+		{
+			"changes": [
+				{
 					"kind": "added",
 					"summary": "Add opt-in `selection: \"newest\"` for verification lookups: use the most recent authenticated match (up to a 24-hour window) instead of failing on multiple matches, and keep Gmail's newest candidates on busy inboxes. The default remains strict unique matching.",
 					"symbols": [
