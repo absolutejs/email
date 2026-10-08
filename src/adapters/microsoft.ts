@@ -197,7 +197,7 @@ export const microsoftMessageToNormalized = (
   if (!message.id) return null;
   const fromEmail = graphEmail(message.from);
   const bodyText =
-    stripHtml(message.body?.content) || message.bodyPreview || null;
+    stripHtml(message.body?.content, true) || message.bodyPreview || null;
 
   return {
     accountEmail: cleanEmail(input.accountEmail),

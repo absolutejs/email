@@ -1,3 +1,4 @@
+import { gmailMessageToNormalized } from "./adapters/gmail";
 import { describe, expect, test } from "bun:test";
 import type { GmailClient } from "./adapters/gmail";
 import { createMicrosoftGraphEmailClient } from "./adapters/microsoft";
@@ -345,4 +346,206 @@ test("source contracts use type aliases, not interfaces", async () => {
     new URL("./verification.ts", import.meta.url),
   ).text();
   expect(source).not.toMatch(/\binterface\s+[A-Za-z_$]/u);
+});
+
+test("standalone layout is explicit, bounded, authenticated and rejects multiple codes", () => {
+  const profile = {
+    ...PROFILE,
+    codeLayout: "standalone-after-marker" as const,
+    bodyMarkers: ["different device"],
+  };
+  const bodyText =
+    "It looks like you tried to sign in from a different device.\n\n482193\n\nIgnore this if it was not you.";
+  expect(
+    new TextDecoder().decode(
+      resolveEmailVerificationCode([message({ bodyText })], {
+        ...query,
+        profile,
+      }).bytes,
+    ),
+  ).toBe("482193");
+  for (const body of [
+    "482193\ndifferent device",
+    "different device\n" + "x".repeat(513) + "\n482193",
+    "different device\n482193\n591204",
+    "different device\nvalue=482193",
+    "different device\n4821937",
+  ]) {
+    expect(() =>
+      resolveEmailVerificationCode([message({ bodyText: body })], {
+        ...query,
+        profile,
+      }),
+    ).toThrow();
+  }
+  expect(() =>
+    resolveEmailVerificationCode(
+      [message({ bodyText, authenticationResults: [] })],
+      { ...query, profile },
+    ),
+  ).toThrow();
+  expect(() =>
+    resolveEmailVerificationCode([message({ bodyText })], {
+      ...query,
+      profile: { ...profile, codeLayout: "after-marker" },
+    }),
+  ).toThrow();
+});
+
+test("HTML-only Gmail preserves standalone code boundaries", () => {
+  const body =
+    "<p>Different device</p><div><strong>482193</strong></div><p>Expires shortly</p>";
+  const normalized = gmailMessageToNormalized(
+    {
+      id: "html",
+      internalDate: String(NOW.getTime()),
+      payload: {
+        mimeType: "text/html",
+        headers: [
+          { name: "from", value: "security@example.com" },
+          { name: "to", value: "member@example.net" },
+          { name: "subject", value: "Sign in to Example" },
+          {
+            name: "authentication-results",
+            value: "mx.mailbox.example; dmarc=pass header.from=example.com",
+          },
+        ],
+        body: { data: Buffer.from(body).toString("base64url") },
+      },
+    },
+    { accountEmail: "member@example.net" },
+  )!;
+  expect(
+    new TextDecoder().decode(
+      resolveEmailVerificationCode([normalized], {
+        ...query,
+        profile: {
+          ...PROFILE,
+          bodyMarkers: ["Different device"],
+          codeLayout: "standalone-after-marker",
+        },
+      }).bytes,
+    ),
+  ).toBe("482193");
+});
+
+describe("newest selection", () => {
+  const older = message({
+    bodyText: "Your verification code: 111111.",
+    id: "older",
+    occurredAt: new Date(NOW.getTime() - 20 * 60_000),
+  });
+  const newer = message({
+    bodyText: "Your verification code: 222222.",
+    id: "newer",
+    occurredAt: new Date(NOW.getTime() - 60_000),
+  });
+  const wide = {
+    ...query,
+    notBefore: new Date(NOW.getTime() - 60 * 60_000),
+  };
+
+  test("unique selection still rejects several matches and wide windows", () => {
+    expect(() => resolveEmailVerificationCode([older, newer], query)).toThrow();
+    expect(() => resolveEmailVerificationCode([newer], wide)).toThrow(
+      new EmailVerificationError("invalid_profile"),
+    );
+  });
+
+  test("uses the most recent authenticated match across a wide window", () => {
+    const result = resolveEmailVerificationCode([older, newer], {
+      ...wide,
+      selection: "newest",
+    });
+    expect(new TextDecoder().decode(result.bytes)).toBe("222222");
+    expect(result.evidence.messageId).toBe("newer");
+  });
+
+  test("ignores a newer message that fails sender authentication", () => {
+    const forged = message({
+      authenticationResults: [
+        "mx.mailbox.example; dmarc=fail header.from=example.com",
+      ],
+      bodyText: "Your verification code: 999999.",
+      id: "forged",
+      occurredAt: new Date(NOW.getTime() - 1000),
+    });
+    const result = resolveEmailVerificationCode([older, newer, forged], {
+      ...wide,
+      selection: "newest",
+    });
+    expect(new TextDecoder().decode(result.bytes)).toBe("222222");
+  });
+
+  test("two different codes at the same instant stay ambiguous", () => {
+    const twin = message({
+      bodyText: "Your verification code: 333333.",
+      id: "twin",
+      occurredAt: newer.occurredAt,
+    });
+    expect(() =>
+      resolveEmailVerificationCode([newer, twin], {
+        ...wide,
+        selection: "newest",
+      }),
+    ).toThrow(new EmailVerificationError("ambiguous_match"));
+  });
+
+  test("rejects windows longer than 24 hours", () => {
+    expect(() =>
+      resolveEmailVerificationCode([newer], {
+        ...query,
+        notBefore: new Date(NOW.getTime() - 25 * 60 * 60_000),
+        selection: "newest",
+      }),
+    ).toThrow(new EmailVerificationError("invalid_profile"));
+  });
+});
+
+describe("Gmail newest lookup", () => {
+  const gmailWith = (ids: string[], sizes: number[]) =>
+    ({
+      getMessage: async (id: string) => ({
+        id,
+        internalDate: String(NOW.getTime()),
+        payload: {
+          headers: [
+            { name: "From", value: "security@example.com" },
+            { name: "To", value: "member@example.net" },
+            { name: "Subject", value: "Sign in" },
+          ],
+          mimeType: "text/plain",
+          body: { data: Buffer.from("code").toString("base64url") },
+        },
+      }),
+      listHistory: async () => ({ messages: [] }),
+      searchMessages: async ({ maxResults }: { maxResults?: number }) => {
+        sizes.push(maxResults ?? 0);
+        return ids.slice(0, maxResults).map((id) => ({ id }));
+      },
+      watch: async () => ({}),
+    }) as GmailClient;
+
+  test("keeps the newest candidates instead of failing on a busy inbox", async () => {
+    const sizes: number[] = [];
+    const lookup = createGmailVerificationMessageLookup({
+      accountEmail: "member@example.net",
+      client: gmailWith(["a", "b", "c", "d"], sizes),
+      maxCandidates: 2,
+    });
+    const found = await lookup.find({ ...query, selection: "newest" });
+    expect(found.map((m) => m.id)).toEqual(["a", "b"]);
+    expect(sizes).toEqual([2]);
+  });
+
+  test("unique selection still fails when candidates exceed the limit", async () => {
+    const lookup = createGmailVerificationMessageLookup({
+      accountEmail: "member@example.net",
+      client: gmailWith(["a", "b", "c"], []),
+      maxCandidates: 2,
+    });
+    await expect(lookup.find(query)).rejects.toEqual(
+      new EmailVerificationError("candidate_limit"),
+    );
+  });
 });

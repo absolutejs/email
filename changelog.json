@@ -5,6 +5,36 @@
 		{
 			"changes": [
 				{
+					"kind": "added",
+					"summary": "Add opt-in `selection: \"newest\"` for verification lookups: use the most recent authenticated match (up to a 24-hour window) instead of failing on multiple matches, and keep Gmail's newest candidates on busy inboxes. The default remains strict unique matching.",
+					"symbols": [
+						"EmailVerificationLookupInput",
+						"resolveEmailVerificationCode",
+						"retrieveEmailVerificationCode",
+						"createGmailVerificationMessageLookup"
+					]
+				}
+			],
+			"date": "2026-09-25",
+			"version": "0.7.0"
+		},
+		{
+			"changes": [
+				{
+					"kind": "added",
+					"summary": "Verification profiles can explicitly match standalone code lines after a trusted marker; HTML normalization can preserve block boundaries.",
+					"symbols": [
+						"EmailVerificationProfile",
+						"stripHtml"
+					]
+				}
+			],
+			"date": "2026-09-24",
+			"version": "0.6.0"
+		},
+		{
+			"changes": [
+				{
 					"kind": "fixed",
 					"summary": "Validate Gmail push payloads and normalize safe numeric history cursors without rounding unsafe values.",
 					"symbols": [
