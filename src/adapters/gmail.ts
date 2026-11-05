@@ -67,6 +67,7 @@ export type GmailClient = {
   getMessage: (id: string) => Promise<GmailMessage | null>;
   listHistory: (input: {
     cursor?: string | null;
+    maxPages?: number;
   }) => Promise<EmailDeltaResult<{ id: string; threadId?: string }>>;
   searchMessages: (input: {
     maxResults?: number;
@@ -140,15 +141,20 @@ export const createGmailClient = (
       fetcher,
     );
 
-    return response.ok ? response.body : null;
+    if (response.status === 404) return null;
+    if (!response.ok || !response.body)
+      throw new Error(`Gmail message read failed (${response.status})`);
+    return response.body;
   },
-  listHistory: async ({ cursor }) => {
+  listHistory: async ({ cursor, maxPages = MAX_HISTORY_PAGES }) => {
+    if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 100)
+      throw new TypeError("maxPages must be between 1 and 100");
     if (!cursor) return { cursor: null, expired: false, messages: [] };
     const byId = new Map<string, { id: string; threadId?: string }>();
     let latestCursor = cursor;
     let pageToken: string | undefined;
 
-    for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
+    for (let page = 0; page < maxPages; page += 1) {
       const params = new URLSearchParams({
         historyTypes: "messageAdded",
         startHistoryId: cursor,
@@ -164,7 +170,7 @@ export const createGmailClient = (
         return { cursor, expired: true, messages: [] };
       }
       if (!response.ok || !response.body) {
-        return { cursor: latestCursor, expired: false, messages: [] };
+        throw new Error(`Gmail history read failed (${response.status})`);
       }
       for (const entry of response.body.history ?? []) {
         for (const added of entry.messagesAdded ?? []) {
@@ -189,11 +195,17 @@ export const createGmailClient = (
           }
         }
       }
-      latestCursor = response.body.historyId ?? latestCursor;
+      if (!response.body.historyId || !/^\d+$/.test(response.body.historyId))
+        throw new Error("Gmail history response is missing a valid cursor");
+      latestCursor = response.body.historyId;
       pageToken = response.body.nextPageToken;
       if (!pageToken) break;
     }
 
+    if (pageToken)
+      throw new Error(
+        "Gmail history is incomplete; preserve the previous cursor and retry with a larger page budget",
+      );
     return {
       cursor: latestCursor,
       expired: false,
@@ -212,7 +224,8 @@ export const createGmailClient = (
       undefined,
       fetcher,
     );
-    if (!response.ok || !response.body) return [];
+    if (!response.ok || !response.body)
+      throw new Error(`Gmail search failed (${response.status})`);
 
     return (response.body.messages ?? []).flatMap((message) => {
       if (!message.id) return [];
@@ -238,7 +251,7 @@ export const createGmailClient = (
       fetcher,
     );
     if (!response.ok || !response.body) {
-      return { cursor: null, expiration: null, id: null };
+      throw new Error(`Gmail watch failed (${response.status})`);
     }
 
     return {

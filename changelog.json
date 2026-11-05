@@ -5,6 +5,24 @@
 		{
 			"changes": [
 				{
+					"kind": "breaking",
+					"migration": {
+						"instruction": "Catch Gmail read and watch failures instead of treating null or empty results as successful reads. Commit history messages and its returned cursor atomically only after success. Set maxPages up to 100 for larger history batches; preserve the old cursor on any error.",
+						"manual": true
+					},
+					"summary": "Fail Gmail reads explicitly and preserve cursors on incomplete history",
+					"symbols": [
+						"createGmailClient",
+						"GmailClient"
+					]
+				}
+			],
+			"date": "2026-11-05",
+			"version": "0.8.0"
+		},
+		{
+			"changes": [
+				{
 					"detail": "The Gmail push validation fix shipped as 0.4.1 on the older 0.4 line, so 0.6 and 0.7 never had it. Gmail Pub/Sub push payloads are validated, and numeric history cursors are normalized only when they are safe integers, so a large cursor is never rounded.",
 					"kind": "fixed",
 					"summary": "Validate Gmail push payloads and keep large history cursors exact (the 0.4.1 fix, now on the current line)",
