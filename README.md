@@ -159,3 +159,9 @@ or matching messages remain ambiguous and fail closed. Sender authentication,
 recipient, service origin, subject, time window and candidate limits still apply.
 Gmail and Microsoft HTML normalization preserves block boundaries for this layout.
 The default layout remains a code immediately following its configured marker.
+
+## Host-controlled Gmail sending
+
+`sendGmailMessage(message, { fetch, signal })` sends a plain-text MIME message with up to five attachments (10 MB total). Bind `fetch` to host-authorized credentials and egress; the package never obtains credentials or grants approval. `buildOutgoingMime` is available for inspection. Supply a stable RFC Message-ID, and both `threadId` and `inReplyTo` for replies.
+
+Sending is a single attempt. `EmailSendError.outcome` distinguishes explicit rejection from `unknown`; never automatically retry an unknown send. Gmail's Message-ID is for reconciliation, not an idempotency guarantee. Hosts must gate exact input through approval and use durable execution before invoking this API.

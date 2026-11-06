@@ -5,6 +5,22 @@
 		{
 			"changes": [
 				{
+					"detail": "Hosts inject authorized transport and own approvals and durable execution. Sends are attempted once; ambiguous outcomes require reconciliation.",
+					"kind": "added",
+					"summary": "Add host-controlled Gmail sending with bounded MIME attachments and explicit uncertain outcomes",
+					"symbols": [
+						"buildOutgoingMime",
+						"sendGmailMessage",
+						"EmailSendError"
+					]
+				}
+			],
+			"date": "2026-11-06",
+			"version": "0.9.0"
+		},
+		{
+			"changes": [
+				{
 					"kind": "breaking",
 					"migration": {
 						"instruction": "Catch Gmail read and watch failures instead of treating null or empty results as successful reads. Commit history messages and its returned cursor atomically only after success. Set maxPages up to 100 for larger history batches; preserve the old cursor on any error.",
