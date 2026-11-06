@@ -6,6 +6,19 @@
 			"changes": [
 				{
 					"kind": "added",
+					"summary": "Add host-controlled bounded retries for throttled Gmail reads without retrying sends or permission errors",
+					"symbols": [
+						"createRetryingGmailReadFetch"
+					]
+				}
+			],
+			"date": "2026-11-06",
+			"version": "0.11.0"
+		},
+		{
+			"changes": [
+				{
+					"kind": "added",
 					"summary": "Add opt-in complete Gmail search pagination with bounded pages and explicit incomplete-search errors",
 					"symbols": [
 						"createGmailClient",

@@ -19,3 +19,5 @@ export * from "./webhooks/gmail";
 export * from "./webhooks/microsoft";
 export * from "./webhooks/resend";
 export * from "./send";
+
+export * from "./gmailRetry";
