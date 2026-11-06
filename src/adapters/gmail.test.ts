@@ -72,3 +72,48 @@ test("failed reads and watch calls are not empty successes; deleted messages rem
     client([new Response("", { status: 403 })]).watch("topic"),
   ).rejects.toThrow("failed");
 });
+
+test("bounded complete searches follow page tokens, deduplicate, and reject partial results", async () => {
+  const seen: URL[] = [];
+  const pages = [
+    Response.json({ messages: [{ id: "one" }], nextPageToken: "page2" }),
+    Response.json({
+      messages: [{ id: "one" }, { id: "two", threadId: "thread" }],
+    }),
+  ];
+  const gmail = createGmailClient({ accessToken: "fixture" }, (async (
+    input,
+  ) => {
+    seen.push(new URL(String(input)));
+    return pages.shift()!;
+  }) as EmailFetch);
+  expect(
+    await gmail.searchMessages({
+      query: "application",
+      maxResults: 100,
+      maxPages: 2,
+    }),
+  ).toEqual([{ id: "one" }, { id: "two", threadId: "thread" }]);
+  expect(seen[1]!.searchParams.get("pageToken")).toBe("page2");
+  expect(seen[1]!.searchParams.get("q")).toBe("application");
+  const first = () =>
+    Response.json({ messages: [{ id: "one" }], nextPageToken: "page2" });
+  await expect(
+    client([first()]).searchMessages({ query: "job", maxPages: 1 }),
+  ).rejects.toThrow("incomplete");
+  await expect(
+    client([first(), new Response("", { status: 503 })]).searchMessages({
+      query: "job",
+      maxPages: 2,
+    }),
+  ).rejects.toThrow("failed");
+  expect(await client([first()]).searchMessages({ query: "job" })).toEqual([
+    { id: "one" },
+  ]);
+  await expect(
+    client([]).searchMessages({ query: "job", maxPages: 101 }),
+  ).rejects.toThrow("maxPages");
+  await expect(
+    client([]).searchMessages({ query: "job", maxResults: 501 }),
+  ).rejects.toThrow("maxResults");
+});

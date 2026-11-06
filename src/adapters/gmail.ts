@@ -72,6 +72,8 @@ export type GmailClient = {
   searchMessages: (input: {
     maxResults?: number;
     query: string;
+    /** Opt into complete bounded pagination; throws if the search is incomplete. */
+    maxPages?: number;
   }) => Promise<{ id: string; threadId?: string }[]>;
   watch: (topicName: string) => Promise<
     EmailSubscriptionResult & {
@@ -212,30 +214,48 @@ export const createGmailClient = (
       messages: [...byId.values()],
     };
   },
-  searchMessages: async ({ maxResults = 10, query }) => {
-    const params = new URLSearchParams({
-      includeSpamTrash: "true",
-      maxResults: String(maxResults),
-      q: query,
-    });
-    const response = await fetchJson<GmailMessageListResponse>(
-      `${GMAIL_API}/messages?${params.toString()}`,
-      credential.accessToken,
-      undefined,
-      fetcher,
-    );
-    if (!response.ok || !response.body)
-      throw new Error(`Gmail search failed (${response.status})`);
-
-    return (response.body.messages ?? []).flatMap((message) => {
-      if (!message.id) return [];
-
-      return [
-        message.threadId
-          ? { id: message.id, threadId: message.threadId }
-          : { id: message.id },
-      ];
-    });
+  searchMessages: async ({ maxResults = 10, query, maxPages }) => {
+    if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 500)
+      throw new Error("Gmail maxResults must be between 1 and 500");
+    if (
+      maxPages !== undefined &&
+      (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 100)
+    )
+      throw new Error("Gmail maxPages must be between 1 and 100");
+    const byId = new Map<string, { id: string; threadId?: string }>();
+    let pageToken: string | undefined;
+    for (let page = 0; page < (maxPages ?? 1); page++) {
+      const params = new URLSearchParams({
+        includeSpamTrash: "true",
+        maxResults: String(maxResults),
+        q: query,
+      });
+      if (pageToken) params.set("pageToken", pageToken);
+      const response = await fetchJson<GmailMessageListResponse>(
+        `${GMAIL_API}/messages?${params.toString()}`,
+        credential.accessToken,
+        undefined,
+        fetcher,
+      );
+      if (!response.ok || !response.body)
+        throw new Error(`Gmail search failed (${response.status})`);
+      for (const message of response.body.messages ?? []) {
+        if (!message.id) continue;
+        byId.set(
+          message.id,
+          message.threadId
+            ? { id: message.id, threadId: message.threadId }
+            : { id: message.id },
+        );
+      }
+      pageToken = response.body.nextPageToken;
+      if (!pageToken) break;
+    }
+    if (pageToken && maxPages !== undefined)
+      throw new Error(
+        "Gmail search is incomplete; retry with a larger page budget or narrower query",
+      );
+    return [...byId.values()];
   },
   watch: async (topicName) => {
     const response = await fetchJson<GmailWatchResponse>(
